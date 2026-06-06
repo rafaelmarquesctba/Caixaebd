@@ -216,12 +216,76 @@ table.main-table tbody tr:last-child td { border-bottom: none; }
 
 /* Responsive */
 @media (max-width: 768px) {
-  .sidebar { width: 100%; height: auto; position: static; flex-direction: row; overflow-x: auto; }
-  .sidebar-nav { display: flex; flex-direction: row; padding: 8px; }
-  .sidebar-logo, .sidebar-footer, .nav-section { display: none; }
-  .main { margin-left: 0; padding: 16px; }
+  .sidebar { display: none; }
+  .main { margin-left: 0; padding: 16px 14px 90px; }
   .summary-strip, .cx-grid { grid-template-columns: 1fr; }
   .form-grid, .form-grid.three { grid-template-columns: 1fr; }
+  .page-header { flex-direction: column; align-items: flex-start !important; }
+  .page-header > div:last-child { width: 100%; }
+  .page-header .btn { flex: 1; justify-content: center; }
+}
+
+/* Bottom nav bar (mobile only) */
+.bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  z-index: 50;
+  padding: 6px 0 env(safe-area-inset-bottom, 6px);
+  box-shadow: 0 -2px 12px rgba(0,0,0,0.07);
+}
+.bottom-nav-inner {
+  display: flex;
+  justify-content: space-around;
+  align-items: stretch;
+}
+.bn-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 4px;
+  cursor: pointer;
+  color: var(--text3);
+  font-size: 10px;
+  font-weight: 500;
+  border: none;
+  background: none;
+  font-family: 'DM Sans', sans-serif;
+  transition: color .15s;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+}
+.bn-item.active { color: var(--text); }
+.bn-item .bn-icon { font-size: 20px; line-height: 1; }
+.bn-item .bn-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  margin-bottom: 1px;
+}
+.bn-item .bn-badge {
+  position: absolute;
+  top: 4px; right: calc(50% - 18px);
+  background: var(--text3);
+  color: #fff;
+  font-size: 9px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  font-family: 'DM Mono', monospace;
+}
+.bn-item.active .bn-badge { background: var(--text); }
+.bn-divider { width: 1px; background: var(--border); margin: 8px 0; }
+
+@media (max-width: 768px) {
+  .bottom-nav { display: block; }
 }
 </style>
 </head>
@@ -253,6 +317,34 @@ table.main-table tbody tr:last-child td { border-bottom: none; }
     </nav>
     <div class="sidebar-footer">v2.0 · EBD BA</div>
   </aside>
+
+  <!-- Bottom navigation (mobile) -->
+  <nav class="bottom-nav" role="navigation" aria-label="Navegação principal">
+    <div class="bottom-nav-inner">
+      <button class="bn-item active" onclick="goPage('dashboard')" id="bn-dashboard">
+        <span class="bn-icon">◈</span>
+        <span>Dashboard</span>
+      </button>
+      <div class="bn-divider"></div>
+      <button class="bn-item" onclick="goPage('principal')" id="bn-principal">
+        <span class="bn-dot" style="background:#1a7a4a"></span>
+        <span>Principal</span>
+        <span class="bn-badge" id="bnb-principal">0</span>
+      </button>
+      <div class="bn-divider"></div>
+      <button class="bn-item" onclick="goPage('ficha')" id="bn-ficha">
+        <span class="bn-dot" style="background:#1a5fa8"></span>
+        <span>Ficha</span>
+        <span class="bn-badge" id="bnb-ficha">0</span>
+      </button>
+      <div class="bn-divider"></div>
+      <button class="bn-item" onclick="goPage('reserva')" id="bn-reserva">
+        <span class="bn-dot" style="background:#8a5e0a"></span>
+        <span>Reserva</span>
+        <span class="bn-badge" id="bnb-reserva">0</span>
+      </button>
+    </div>
+  </nav>
 
   <main class="main">
     <!-- DASHBOARD -->
@@ -816,6 +908,8 @@ function updateNavBadges() {
   ['principal','ficha','reserva'].forEach(k=>{
     const el=document.getElementById('nb-'+k);
     if(el) el.textContent=DB[k].length;
+    const bn=document.getElementById('bnb-'+k);
+    if(bn) bn.textContent=DB[k].length;
   });
 }
 
@@ -823,11 +917,17 @@ function goPage(p) {
   currentPage=p;
   document.querySelectorAll('.page').forEach(el=>el.classList.remove('active'));
   document.getElementById('page-'+p).classList.add('active');
+  // sidebar
   document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
   const n=document.getElementById('nav-'+p);
   if(n) n.classList.add('active');
+  // bottom nav
+  document.querySelectorAll('.bn-item').forEach(el=>el.classList.remove('active'));
+  const bn=document.getElementById('bn-'+p);
+  if(bn) bn.classList.add('active');
   if(p==='dashboard') renderDashboard();
   else renderCaixaPage(p);
+  window.scrollTo({top:0, behavior:'smooth'});
 }
 
 // ========== CONFIG ==========
