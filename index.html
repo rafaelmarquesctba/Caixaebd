@@ -830,7 +830,8 @@ function goPage(p) {
   else renderCaixaPage(p);
 }
 
-// ========== LOCALSTORAGE ==========
+// ========== CONFIG ==========
+const GS_URL = 'https://script.google.com/macros/s/AKfycbzFoIZSs4tHkwg4oBDkrSo6LgHq5bto8zv91pLAidT_pvvCd9gYq2CXYB9ss0ABOwGz/exec';
 const LS_KEY = 'ebd_caixa_db_v2';
 
 const SEED_PRINCIPAL_E = [
@@ -922,40 +923,98 @@ function seedDB() {
   };
 }
 
-let saveTimer = null;
-function saveDB() {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify(DB));
-    const ind = document.getElementById('save-indicator');
-    const lbl = document.getElementById('save-label');
-    if(ind && lbl) {
-      ind.classList.add('saved');
-      lbl.textContent = 'Salvo';
-      clearTimeout(saveTimer);
-      saveTimer = setTimeout(()=>{ ind.classList.remove('saved'); lbl.textContent='Dados locais'; }, 2500);
-    }
-  } catch(e) { console.warn('localStorage indisponível:', e); }
+// ---- indicador de status ----
+function setStatus(state, msg) {
+  const ind = document.getElementById('save-indicator');
+  const lbl = document.getElementById('save-label');
+  if(!ind || !lbl) return;
+  ind.className = 'save-indicator' + (state==='ok'?' saved':'');
+  lbl.textContent = msg;
 }
 
-function loadDB() {
+// ---- cache local (fallback offline) ----
+function cacheDB() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(DB)); } catch(e) {}
+}
+function loadCache() {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if(raw) {
-      const parsed = JSON.parse(raw);
-      if(parsed.principal && parsed.ficha !== undefined && parsed.reserva !== undefined) {
-        DB = parsed;
-        const ind = document.getElementById('save-indicator');
-        const lbl = document.getElementById('save-label');
-        if(ind && lbl) { ind.classList.add('saved'); lbl.textContent='Dados locais'; }
-        return true;
-      }
+      const p = JSON.parse(raw);
+      if(p.principal && p.ficha !== undefined && p.reserva !== undefined) { DB = p; return true; }
     }
-  } catch(e) { console.warn('Erro ao carregar localStorage:', e); }
+  } catch(e) {}
   return false;
 }
 
-// Patch save into every DB-mutating function
-const _origDelRow = delRow;
+// ---- Google Sheets: ler dados ----
+function gsLoad() {
+  setStatus('', 'Sincronizando...');
+  fetch(GS_URL)
+    .then(r => r.json())
+    .then(res => {
+      if(!res.ok) throw new Error('resposta nao ok');
+      const rows = res.data.filter(r => r.id && r.caixa && r.tipo);
+      DB = { principal: [], ficha: [], reserva: [] };
+      rows.forEach(r => {
+        const cx = r.caixa;
+        if(!DB[cx]) DB[cx] = [];
+        DB[cx].push({
+          id: String(r.id),
+          caixa: String(r.caixa),
+          tipo: String(r.tipo),
+          data: String(r.data),
+          valor: parseFloat(r.valor) || 0,
+          desc: String(r.desc)
+        });
+      });
+      // Se planilha vazia, usa seed
+      if(!DB.principal.length && !DB.ficha.length && !DB.reserva.length) {
+        DB = seedDB();
+        gsSync();
+        return;
+      }
+      cacheDB();
+      setStatus('ok', 'Sincronizado');
+      updateNavBadges();
+      renderDashboard();
+    })
+    .catch(() => {
+      setStatus('', 'Offline');
+      // usa cache local se disponível
+      if(!loadCache()) DB = seedDB();
+      updateNavBadges();
+      renderDashboard();
+      toast('Sem conexão — usando dados locais.');
+    });
+}
+
+// ---- Google Sheets: gravar todos os dados ----
+let syncTimer = null;
+function saveDB() {
+  cacheDB();
+  setStatus('', 'Salvando...');
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => gsSync(), 800);
+}
+
+function gsSync() {
+  const allRows = ['principal','ficha','reserva'].flatMap(k => DB[k]);
+  fetch(GS_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'save_all', rows: allRows })
+  })
+  .then(r => r.json())
+  .then(res => {
+    if(res.ok) setStatus('ok', 'Salvo na nuvem');
+    else { setStatus('', 'Erro ao salvar'); toast('Erro ao salvar na planilha.'); }
+  })
+  .catch(() => {
+    setStatus('', 'Offline — salvo localmente');
+  });
+}
+
+// ========== FUNÇÕES QUE ALTERAM DADOS ==========
 function delRow(cx,id) {
   DB[cx]=DB[cx].filter(l=>l.id!==id);
   refreshTotals(cx); renderRows(cx); updateNavBadges();
@@ -964,7 +1023,6 @@ function delRow(cx,id) {
   toast('Lançamento removido.');
 }
 
-const _origSaveLanc = saveLanc;
 function saveLanc(cx) {
   const tipo=document.getElementById('fl-tipo').value;
   const data=document.getElementById('fl-data').value;
@@ -980,7 +1038,6 @@ function saveLanc(cx) {
   toast('Lançamento salvo!');
 }
 
-const _origSaveTransf = saveTransf;
 function saveTransf(cx) {
   const dest=document.getElementById('ft-dest').value;
   const data=document.getElementById('ft-data').value;
@@ -1025,10 +1082,10 @@ function importarDados(event) {
       }
       showModal({
         titulo: 'Confirmar importação',
-        texto: `O arquivo contém ${dados.principal.length} lançamentos no Caixa principal, ${dados.ficha.length} na Ficha branca e ${dados.reserva.length} na Reserva.\n\nOs dados atuais serão substituídos. Deseja continuar?`,
+        texto: `O arquivo contém ${dados.principal.length} lançamentos no Caixa principal, ${dados.ficha.length} na Ficha branca e ${dados.reserva.length} na Reserva. Os dados atuais serão substituídos. Deseja continuar?`,
         confirmLabel: 'Sim, importar',
         confirmCls: 'btn-primary',
-        onConfirm: ()=>{
+        onConfirm: () => {
           DB = dados;
           saveDB();
           updateNavBadges();
@@ -1046,10 +1103,10 @@ function importarDados(event) {
 function confirmarReset() {
   showModal({
     titulo: 'Resetar todos os dados',
-    texto: 'Isso apagará todos os lançamentos manuais e restaurará apenas os dados originais da planilha.\n\nEssa ação não pode ser desfeita. Deseja continuar?',
+    texto: 'Isso apagará todos os lançamentos e restaurará apenas os dados originais da planilha. Essa ação não pode ser desfeita. Deseja continuar?',
     confirmLabel: 'Sim, resetar',
     confirmCls: 'btn-danger',
-    onConfirm: ()=>{
+    onConfirm: () => {
       DB = seedDB();
       saveDB();
       updateNavBadges();
@@ -1061,13 +1118,13 @@ function confirmarReset() {
 
 // ========== MODAL ==========
 function showModal({titulo, texto, confirmLabel, confirmCls, onConfirm}) {
-  const paras = texto.split('\n').filter(Boolean).map(t=>`<p>${t}</p>`).join('');
+  const paras = texto.split('.').filter(Boolean).map(t=>`<p>${t.trim()}.</p>`).join('');
   document.getElementById('modal-area').innerHTML = `
     <div class="modal-overlay" onclick="if(event.target===this)closeModal()">
       <div class="modal-box">
         <div class="modal-header">
           <h3>${titulo}</h3>
-          <button class="close-btn" onclick="closeModal()">✕</button>
+          <button class="close-btn" onclick="closeModal()">&#x2715;</button>
         </div>
         <div class="modal-body">${paras}</div>
         <div class="modal-footer">
@@ -1082,12 +1139,11 @@ function modalConfirm() { closeModal(); if(window._modalCb) window._modalCb(); }
 function closeModal() { document.getElementById('modal-area').innerHTML=''; }
 
 // ========== INIT ==========
-if(!loadDB()) {
-  DB = seedDB();
-  saveDB();
-}
+setStatus('', 'Sincronizando...');
 updateNavBadges();
-renderDashboard();
+// Mostra dados do cache enquanto carrega da nuvem
+if(loadCache()) { updateNavBadges(); renderDashboard(); }
+gsLoad();
 </script>
 </body>
 </html>
