@@ -1056,11 +1056,14 @@ function gsLoad() {
       rows.forEach(r => {
         const cx = r.caixa;
         if(!fresh[cx]) fresh[cx] = [];
+        // data pode vir como "2026-05-07T03:00:00.000Z" do Sheets — pega só os 10 primeiros chars
+        const rawData = String(r.data);
+        const data = rawData.length > 10 ? rawData.slice(0, 10) : rawData;
         fresh[cx].push({
           id: String(r.id),
           caixa: String(r.caixa),
           tipo: String(r.tipo),
-          data: String(r.data),
+          data: data,
           valor: parseFloat(r.valor) || 0,
           desc: String(r.desc)
         });
