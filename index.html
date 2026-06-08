@@ -1053,17 +1053,22 @@ function gsLoad() {
 
       // Monta DB limpo a partir da planilha — sem misturar com cache
       const fresh = { principal: [], ficha: [], reserva: [] };
+      const seenIds = new Set();
       rows.forEach(r => {
         const cx = r.caixa;
         if(!fresh[cx]) fresh[cx] = [];
         // data pode vir como "2026-05-07T03:00:00.000Z" do Sheets — pega só os 10 primeiros chars
         const rawData = String(r.data);
         const data = rawData.length > 10 ? rawData.slice(0, 10) : rawData;
+        const id = String(r.id);
+        // ignora linhas duplicadas pelo mesmo ID
+        if(seenIds.has(id)) return;
+        seenIds.add(id);
         fresh[cx].push({
-          id: String(r.id),
+          id,
           caixa: String(r.caixa),
           tipo: String(r.tipo),
-          data: data,
+          data,
           valor: parseFloat(r.valor) || 0,
           desc: String(r.desc)
         });
