@@ -362,7 +362,10 @@ table.main-table tbody tr:last-child td { border-bottom: none; }
         </div>
       </div>
 
-      <!-- Summary strip -->
+      <!-- Caixa cards: principal, reserva, ficha branca -->
+      <div class="cx-grid" id="cx-cards"></div>
+
+      <!-- Summary strip: entradas e saídas -->
       <div class="summary-strip">
         <div class="scard clickable-e" onclick="openDrill('entrada')" id="scard-e">
           <div class="sc-label">▲ Total entradas <span style="font-size:10px;background:var(--green-bg);color:var(--green);padding:1px 6px;border-radius:10px;margin-left:4px">ver itens →</span></div>
@@ -377,15 +380,12 @@ table.main-table tbody tr:last-child td { border-bottom: none; }
         <div class="scard">
           <div class="sc-label">◈ Saldo geral</div>
           <div class="sc-val neutral" id="dash-sd">R$ 0,00</div>
-          <div class="sc-hint">saldo consolidado</div>
+          <div class="sc-hint">todos os caixas</div>
         </div>
       </div>
 
       <!-- Drill-down panel (hidden by default) -->
       <div id="drill-area"></div>
-
-      <!-- Caixa cards -->
-      <div class="cx-grid" id="cx-cards"></div>
 
       <!-- Chart -->
       <div class="card chart-card">
@@ -562,8 +562,9 @@ function renderDashboard() {
   sdEl.textContent=fmt(sd);
   sdEl.className='sc-val '+(sd>=0?'green':'red');
 
-  // Caixa cards
-  document.getElementById('cx-cards').innerHTML=keys.map(k=>{
+  // Caixa cards na ordem: principal, reserva, ficha branca
+  const ordemCards=['principal','reserva','ficha'];
+  document.getElementById('cx-cards').innerHTML=ordemCards.map(k=>{
     const c=CAIXAS_CFG[k]; const s=saldo(k);
     return `<div class="cx-card${currentPage===k?' sel':''}" onclick="goPage('${k}')">
       <div class="cx-name"><span class="nav-dot" style="background:${c.dot}"></span>${c.label}</div>
@@ -1026,7 +1027,7 @@ function setStatus(state, msg) {
   lbl.textContent = msg;
 }
 
-// ---- cache local (fallback offline) ----
+// ---- cache local (apenas para exibir enquanto carrega) ----
 function cacheDB() {
   try { localStorage.setItem(LS_KEY, JSON.stringify(DB)); } catch(e) {}
 }
@@ -1041,19 +1042,21 @@ function loadCache() {
   return false;
 }
 
-// ---- Google Sheets: ler dados ----
+// ---- Google Sheets: ler dados (fonte de verdade) ----
 function gsLoad() {
   setStatus('', 'Sincronizando...');
-  fetch(GS_URL)
+  fetch(GS_URL + '?t=' + Date.now()) // evita cache do browser
     .then(r => r.json())
     .then(res => {
       if(!res.ok) throw new Error('resposta nao ok');
       const rows = res.data.filter(r => r.id && r.caixa && r.tipo);
-      DB = { principal: [], ficha: [], reserva: [] };
+
+      // Monta DB limpo a partir da planilha — sem misturar com cache
+      const fresh = { principal: [], ficha: [], reserva: [] };
       rows.forEach(r => {
         const cx = r.caixa;
-        if(!DB[cx]) DB[cx] = [];
-        DB[cx].push({
+        if(!fresh[cx]) fresh[cx] = [];
+        fresh[cx].push({
           id: String(r.id),
           caixa: String(r.caixa),
           tipo: String(r.tipo),
@@ -1062,34 +1065,40 @@ function gsLoad() {
           desc: String(r.desc)
         });
       });
-      // Se planilha vazia, usa seed
-      if(!DB.principal.length && !DB.ficha.length && !DB.reserva.length) {
+
+      // Se planilha vazia, usa seed e grava
+      if(!fresh.principal.length && !fresh.ficha.length && !fresh.reserva.length) {
         DB = seedDB();
         gsSync();
         return;
       }
-      cacheDB();
+
+      // Substitui DB completamente pela versão da planilha
+      DB = fresh;
+      cacheDB(); // atualiza cache local com dados corretos
       setStatus('ok', 'Sincronizado');
       updateNavBadges();
-      renderDashboard();
+      // Re-renderiza a página atual com dados frescos
+      if(currentPage === 'dashboard') renderDashboard();
+      else renderCaixaPage(currentPage);
     })
     .catch(() => {
       setStatus('', 'Offline');
-      // usa cache local se disponível
       if(!loadCache()) DB = seedDB();
       updateNavBadges();
-      renderDashboard();
-      toast('Sem conexão — usando dados locais.');
+      if(currentPage === 'dashboard') renderDashboard();
+      else renderCaixaPage(currentPage);
+      toast('Sem conexão — exibindo dados locais.');
     });
 }
 
 // ---- Google Sheets: gravar todos os dados ----
 let syncTimer = null;
 function saveDB() {
-  cacheDB();
+  cacheDB(); // salva localmente imediato
   setStatus('', 'Salvando...');
   clearTimeout(syncTimer);
-  syncTimer = setTimeout(() => gsSync(), 800);
+  syncTimer = setTimeout(() => gsSync(), 600);
 }
 
 function gsSync() {
@@ -1235,9 +1244,8 @@ function closeModal() { document.getElementById('modal-area').innerHTML=''; }
 // ========== INIT ==========
 setStatus('', 'Sincronizando...');
 updateNavBadges();
-// Mostra dados do cache enquanto carrega da nuvem
-if(loadCache()) { updateNavBadges(); renderDashboard(); }
-gsLoad();
+renderDashboard(); // renderiza tela vazia/loading
+gsLoad();          // busca da planilha e substitui tudo
 </script>
 </body>
 </html>
