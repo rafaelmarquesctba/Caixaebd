@@ -358,6 +358,7 @@ table.main-table tbody tr:last-child td { border-bottom: none; }
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <button class="btn" onclick="exportarDados()" title="Exportar dados como JSON">↓ Exportar</button>
           <button class="btn" onclick="document.getElementById('import-file').click()" title="Importar dados de um arquivo JSON">↑ Importar</button>
+          <button class="btn btn-danger" onclick="confirmarReset()" title="Restaurar dados originais da planilha">↺ Restaurar original</button>
           <input type="file" id="import-file" accept=".json" style="display:none" onchange="importarDados(event)">
         </div>
       </div>
@@ -965,18 +966,18 @@ const SEED_PRINCIPAL_S = [
   {d:'2025-12-23',v:976.69,desc:'Aquisição de revistas 1 trim 2026'},
   {d:'2026-01-13',v:224.00,desc:'Lâmpadas + Suporte Projetor ML'},
   {d:'2026-01-19',v:127.67,desc:'Materiais elétricos Nichele (Salas Kadosh e Renovo)'},
-  {d:'2026-01-19',v:140.40,desc:'Materiais elétricos ADS (Salas Kadosh e Renovo)'},
+  {d:'2026-01-19',v:140.40,desc:'Materiais elétricos ADS (Salas kadosh e Renovo)'},
   {d:'2026-01-20',v:100.00,desc:'Depósito ficha branca sede'},
   {d:'2026-01-20',v:100.00,desc:'Parc 1/2 Presente Elizeu'},
-  {d:'2026-01-23',v:350.00,desc:'Mão de obra elétrica (Salas Kadosh e Renovo)'},
-  {d:'2026-01-23',v:51.00,desc:'Compl. materiais salas jovens e adolescentes'},
+  {d:'2026-01-23',v:350.00,desc:'Mão de obra Elétrica (Salas Kadosh e Renovo)'},
+  {d:'2026-01-23',v:51.00,desc:'Compl. Materiais salas jovens e adolescentes'},
   {d:'2026-01-23',v:450.00,desc:'Parc 1/2 App Portal EBD (Ev. Vicente)'},
   {d:'2026-01-27',v:177.00,desc:'Complemento lições discipulado e Juvenis'},
   {d:'2026-01-27',v:144.00,desc:'Cópia chaves Eduardo'},
   {d:'2026-02-02',v:39.89,desc:'Fonte Carregador Notebook EBD'},
-  {d:'2026-02-08',v:39.23,desc:'Bíblia Minecrafters Brinde EBD'},
-  {d:'2026-02-08',v:78.77,desc:'Bíblia Sticker Jesus Copy Brinde EBD'},
-  {d:'2026-02-09',v:109.71,desc:'Bíblia Filament Brinde EBD'},
+  {d:'2026-02-08',v:39.23,desc:'Biblia Minecrafters Brinde EBD'},
+  {d:'2026-02-08',v:78.77,desc:'Biblia Sticker Jesus Copy Brinde EBD'},
+  {d:'2026-02-09',v:109.71,desc:'Biblia Filament Brinde EBD'},
   {d:'2026-02-10',v:80.70,desc:'Pastas p/ notebooks EBD'},
   {d:'2026-02-15',v:65.00,desc:'Depósito ficha branca interna'},
   {d:'2026-02-20',v:60.00,desc:'Resma de papel e caixa para alimentos EBD'},
@@ -987,9 +988,9 @@ const SEED_PRINCIPAL_S = [
   {d:'2026-03-10',v:1467.00,desc:'Aquisição de revistas 2 trim 2026'},
   {d:'2026-03-15',v:25.98,desc:'Caixas de bombom aula Juniores'},
   {d:'2026-03-24',v:52.90,desc:'Folhas impressão lembranças EBD'},
-  {d:'2026-03-28',v:14.00,desc:'Papel de presente Prêmios EBD'},
+  {d:'2026-03-28',v:14.00,desc:'Papel de presente Premios EBD'},
   {d:'2026-03-28',v:33.00,desc:'Chocolate Bis Lembrança Encerramento EBD'},
-  {d:'2026-03-28',v:205.00,desc:'Complemento lições EBD'},
+  {d:'2026-03-28',v:205.00,desc:'Complemente lições EBD'},
   {d:'2026-04-01',v:100.00,desc:'Bombons lembrança páscoa'},
   {d:'2026-04-12',v:100.00,desc:'Depósito ficha interna/branca'},
   {d:'2026-04-12',v:20.00,desc:'Contribuição Regional Boa Vista'},
@@ -997,7 +998,7 @@ const SEED_PRINCIPAL_S = [
   {d:'2026-04-19',v:920.00,desc:'2 quadros vidro salas Kadosh e Renovo'},
   {d:'2026-04-25',v:198.17,desc:'Compras mercado para café EBD'},
   {d:'2026-04-25',v:16.00,desc:'Copos plásticos EBD'},
-  {d:'2026-04-27',v:53.40,desc:'Extensor HDMI sala Heróis na Fé'},
+  {d:'2026-04-27',v:53.40,desc:'Extensor HDMI sala Heróis na fé'},
   {d:'2026-05-02',v:49.60,desc:'Fonte Notebook Aspire 3'},
   {d:'2026-05-24',v:20.00,desc:'Contribuição Regional Boa Vista'},
   {d:'2026-05-29',v:62.40,desc:'Embalagens sopa capacitação'},
@@ -1006,6 +1007,16 @@ const SEED_PRINCIPAL_S = [
   {d:'2026-05-30',v:157.10,desc:'Ingredientes sopa capacitação'},
   {d:'2026-05-29',v:280.00,desc:'Livretos Capacitação EBD'},
 ];
+const SEED_FICHA_E = [
+  {d:'2026-01-20',v:100.00,desc:'Depósito mensal'},
+  {d:'2026-02-15',v:65.00,desc:'Depósito mensal'},
+  {d:'2026-04-12',v:100.00,desc:'Depósito cartão'},
+  {d:'2026-04-26',v:77.00,desc:'Depósito cartão'},
+];
+const SEED_FICHA_S = [
+  {d:'2026-02-22',v:511.00,desc:'Lançamento ficha branca'},
+  {d:'2026-03-28',v:205.00,desc:'Compl lições 2 trim (crédito)'},
+];
 
 function seedDB() {
   return {
@@ -1013,7 +1024,10 @@ function seedDB() {
       ...SEED_PRINCIPAL_E.map(e=>({id:uid(),caixa:'principal',tipo:'entrada',data:e.d,valor:e.v,desc:e.desc})),
       ...SEED_PRINCIPAL_S.map(e=>({id:uid(),caixa:'principal',tipo:'saida',data:e.d,valor:e.v,desc:e.desc}))
     ],
-    ficha: [],
+    ficha: [
+      ...SEED_FICHA_E.map(e=>({id:uid(),caixa:'ficha',tipo:'entrada',data:e.d,valor:e.v,desc:e.desc})),
+      ...SEED_FICHA_S.map(e=>({id:uid(),caixa:'ficha',tipo:'saida',data:e.d,valor:e.v,desc:e.desc}))
+    ],
     reserva: []
   };
 }
