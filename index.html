@@ -612,11 +612,12 @@ function mesLabel(m) {
   const [y,mo]=m.split('-');
   return ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][parseInt(mo)-1]+'/'+y.slice(2);
 }
+function isSaidaTipo(l) { return l.tipo==='saida'||l.tipo==='transferencia'; }
 function saldo(cx) { return DB[cx].reduce((s,l)=>s+(l.tipo==='entrada'?l.valor:-l.valor),0); }
 function totalE(cx) { return DB[cx].filter(l=>l.tipo==='entrada').reduce((s,l)=>s+l.valor,0); }
-function totalS(cx) { return DB[cx].filter(l=>l.tipo==='saida').reduce((s,l)=>s+l.valor,0); }
+function totalS(cx) { return DB[cx].filter(isSaidaTipo).reduce((s,l)=>s+l.valor,0); }
 function allItems(tipo) {
-  return ['principal','ficha','reserva'].flatMap(k=>DB[k].filter(l=>l.tipo===tipo));
+  return ['principal','ficha','reserva'].flatMap(k=>DB[k].filter(l=>tipo==='saida'?isSaidaTipo(l):l.tipo===tipo));
 }
 function allMeses(filter) {
   let items = filter==='all' ? ['principal','ficha','reserva'].flatMap(k=>DB[k]) : DB[filter];
@@ -635,7 +636,7 @@ function renderDashboard() {
   const ts=keys.reduce((s,k)=>s+totalS(k),0);
   const sd=te-ts;
   const cntE=keys.reduce((s,k)=>s+DB[k].filter(l=>l.tipo==='entrada').length,0);
-  const cntS=keys.reduce((s,k)=>s+DB[k].filter(l=>l.tipo==='saida').length,0);
+  const cntS=keys.reduce((s,k)=>s+DB[k].filter(isSaidaTipo).length,0);
 
   document.getElementById('dash-te').textContent=fmt(te);
   document.getElementById('dash-ts').textContent=fmt(ts);
@@ -684,12 +685,13 @@ function renderDrill() {
   const label=isE?'Entradas':'Saídas';
 
   // All meses across caixas for this tipo
-  const allMs=[...new Set(['principal','ficha','reserva'].flatMap(k=>DB[k].filter(l=>l.tipo===tipo).map(l=>l.data.slice(0,7))))].sort();
+  const matchTipo = tipo==='saida' ? isSaidaTipo : (l=>l.tipo===tipo);
+  const allMs=[...new Set(['principal','ficha','reserva'].flatMap(k=>DB[k].filter(matchTipo).map(l=>l.data.slice(0,7))))].sort();
 
   // Filtered rows
   let rows=['principal','ficha','reserva'].flatMap(k=>{
     if(drillCaixaFilter!=='all'&&k!==drillCaixaFilter) return [];
-    return DB[k].filter(l=>l.tipo===tipo);
+    return DB[k].filter(matchTipo);
   });
   if(drillMesFilter) rows=rows.filter(l=>l.data.startsWith(drillMesFilter));
   if(drillSearch) rows=rows.filter(l=>l.desc.toLowerCase().includes(drillSearch.toLowerCase()));
@@ -766,10 +768,10 @@ function renderDashChart() {
   let E,S;
   if(filter==='all'){
     E=meses.map(m=>['principal','ficha','reserva'].reduce((s,k)=>s+DB[k].filter(l=>l.tipo==='entrada'&&l.data.startsWith(m)).reduce((a,l)=>a+l.valor,0),0));
-    S=meses.map(m=>['principal','ficha','reserva'].reduce((s,k)=>s+DB[k].filter(l=>l.tipo==='saida'&&l.data.startsWith(m)).reduce((a,l)=>a+l.valor,0),0));
+    S=meses.map(m=>['principal','ficha','reserva'].reduce((s,k)=>s+DB[k].filter(l=>isSaidaTipo(l)&&l.data.startsWith(m)).reduce((a,l)=>a+l.valor,0),0));
   } else {
     E=meses.map(m=>DB[filter].filter(l=>l.tipo==='entrada'&&l.data.startsWith(m)).reduce((s,l)=>s+l.valor,0));
-    S=meses.map(m=>DB[filter].filter(l=>l.tipo==='saida'&&l.data.startsWith(m)).reduce((s,l)=>s+l.valor,0));
+    S=meses.map(m=>DB[filter].filter(l=>isSaidaTipo(l)&&l.data.startsWith(m)).reduce((s,l)=>s+l.valor,0));
   }
   const canvas=document.getElementById('dash-chart');
   if(dashChartInst) dashChartInst.destroy();
